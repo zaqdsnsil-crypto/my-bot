@@ -9,7 +9,7 @@ from telegram.ext import (
 
 TOKEN = os.environ.get("TOKEN")
 GROUP_LINK = "https://t.me/sgjujbc"
-CHAT_ID = int(os.environ.get("CHAT_ID", "-1001003887975782"))
+CHAT_ID = int(os.environ.get("CHAT_ID"))
 
 warnings = {}
 trivia_answers = {}
