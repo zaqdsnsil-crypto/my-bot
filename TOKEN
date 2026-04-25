@@ -1,0 +1,426 @@
+import os
+import random
+import datetime
+from telegram import Update, ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler,
+    filters, ContextTypes, CallbackQueryHandler
+)
+
+TOKEN = os.environ.get("TOKEN")
+GROUP_LINK = "https://t.me/sgjujbc"
+CHAT_ID = -1001003887975782
+
+warnings = {}
+trivia_answers = {}
+number_games = {}
+
+BAD_WORDS = ["فحش1", "فحش2", "بد1"]
+
+JOKES = [
+    "یه نفر رفت دکتر گفت دکتر همه بهم میگن دیوونه!\nدکتر گفت: خب برو بیرون نوبت بعدی! 😂",
+    "معلم: چرا دیر اومدی؟\nشاگرد: مدرسه ساعت 8 شروع میشه، منم ساعت 8 رفتم خونه! 😂",
+    "یه نفر زنگ زد پیتزافروشی: یه پیتزا بدید!\nگفتن آدرس؟\nگفت روی جعبه بنویسید تبریک تولد! 😂",
+    "دوستم گفت داری چیکار میکنی؟\nگفتم هیچی!\nگفت کِی تموم میشه؟ 😂",
+    "بابام گفت برو اتاقتو مرتب کن!\nرفتم در اتاقمو قفل کردم! 😂",
+    "رفتم آرایشگاه گفتم موهامو کوتاه کن!\nگفت چقدر؟\nگفتم به اندازه ای که خجالت نکشم! 😂",
+    "مامانم گفت چرا نمیری دنبال کار؟\nگفتم کار پیدا کردم!\nگفت کجا؟\nگفتم توی خواب! 😂",
+    "استادم گفت دیر اومدی!\nگفتم تو رویام دیدم امتحان داریم از ترس دیر بیدار شدم!\nگفت پس چرا اومدی؟\nگفتم اونجا قبول نشدم! 😂",
+    "زنگ زدم بانک: موجودیم چنده؟\nگفت کمتر از چیزیه که فکر میکنید!\nگفتم میدونم ولی دقیقشو بگو! 😂",
+    "دکتر گفت باید ورزش کنی!\nگفتم تنبلی ارثیه!\nگفت از کی؟\nگفتم بپرس از بابام اونم حوصله نداشت بگه! 😂",
+]
+
+FACTS = [
+    "مغز انسان حدود 86 میلیارد نورون داره!",
+    "اختاپوس سه قلب داره و خونش آبیه!",
+    "زمین در هر ثانیه 30 کیلومتر دور خورشید میچرخه!",
+    "کوسه ها از دایناسورها قدیمی ترن!",
+    "عسل هرگز فاسد نمیشه، عسل 3000 ساله پیدا شده!",
+    "فیل ها تنها حیواناتی هستن که نمیتونن بپرن!",
+    "ماه هر سال 3.8 سانتیمتر از زمین دور میشه!",
+    "پروانه با پاهاش مزه رو حس میکنه!",
+    "دلفین ها نصف مغزشون میخوابه و نصف دیگه بیداره!",
+]
+
+TOP_SONGS = [
+    "Blinding Lights - The Weeknd",
+    "Shape of You - Ed Sheeran",
+    "Despacito - Luis Fonsi",
+    "Uptown Funk - Bruno Mars",
+    "Rolling in the Deep - Adele",
+    "Bohemian Rhapsody - Queen",
+    "Hotel California - Eagles",
+    "Billie Jean - Michael Jackson",
+    "Someone Like You - Adele",
+    "Bad Guy - Billie Eilish",
+    "Levitating - Dua Lipa",
+    "Stay With Me - Sam Smith",
+]
+
+TRIVIA = [
+    {"q": "پایتخت فرانسه کجاست؟", "a": "پاریس", "opts": ["لندن", "پاریس", "برلین", "رم"]},
+    {"q": "بزرگترین سیاره منظومه شمسی کدومه؟", "a": "مشتری", "opts": ["زحل", "اورانوس", "مشتری", "نپتون"]},
+    {"q": "چند ساعت در یک شبانه روز وجود داره؟", "a": "24", "opts": ["12", "24", "36", "48"]},
+    {"q": "سریع ترین حیوان روی زمین کدومه؟", "a": "یوزپلنگ", "opts": ["شیر", "اسب", "یوزپلنگ", "ببر"]},
+    {"q": "کدوم کشور بزرگترین مساحت رو داره؟", "a": "روسیه", "opts": ["چین", "آمریکا", "روسیه", "کانادا"]},
+    {"q": "اختراع تلفن به چه کسی نسبت داده میشه؟", "a": "گراهام بل", "opts": ["ادیسون", "گراهام بل", "تسلا", "مارکونی"]},
+    {"q": "بزرگترین اقیانوس دنیا کدومه؟", "a": "اقیانوس آرام", "opts": ["اقیانوس هند", "اقیانوس اطلس", "اقیانوس آرام", "اقیانوس منجمد"]},
+]
+
+async def is_admin(update: Update) -> bool:
+    user = update.message.from_user
+    chat = update.message.chat
+    member = await chat.get_member(user.id)
+    return member.status in ["administrator", "creator"]
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "سلام! من ربات قدرتمند گروهم!\n\n"
+        "دستورات مدیریت:\n"
+        "/ban - بن کردن\n"
+        "/unban - آنبن کردن\n"
+        "/mute - میوت کردن\n"
+        "/unmute - آنمیوت کردن\n"
+        "/kick - کیک کردن\n"
+        "/pin - پین کردن\n"
+        "/warn - اخطار دادن\n"
+        "/userinfo - اطلاعات کاربر\n"
+        "/stats - آمار گروه\n\n"
+        "بازی و سرگرمی:\n"
+        "/joke - جوک\n"
+        "/fact - حقیقت جالب\n"
+        "/music - آهنگ برتر جهان\n"
+        "/trivia - سوال تریویا\n"
+        "/guess - بازی حدس عدد\n"
+        "/try [عدد] - حدس بزن\n"
+        "/dice - تاس بینداز\n"
+        "/rps - سنگ کاغذ قیچی\n"
+        "/magic - پیش بینی آینده\n"
+        "/roast - متلک دوستانه\n"
+        "/love - سنجش عشق\n\n"
+        f"گروه ما: {GROUP_LINK}"
+    )
+
+async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    for member in update.message.new_chat_members:
+        await update.message.reply_text(
+            f"سلام {member.full_name} عزیز!\n"
+            f"خوش اومدی به گروه ما!\n"
+            f"لطفا قوانین گروه رو رعایت کن\n"
+            f"گروه ما: {GROUP_LINK}"
+        )
+
+async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update):
+        await update.message.reply_text("فقط ادمین میتونه!")
+        return
+    if update.message.reply_to_message:
+        user = update.message.reply_to_message.from_user
+        await context.bot.ban_chat_member(update.message.chat_id, user.id)
+        await update.message.reply_text(f"{user.full_name} بن شد!")
+    else:
+        await update.message.reply_text("روی پیام کاربر ریپلای بزن!")
+
+async def unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update):
+        await update.message.reply_text("فقط ادمین میتونه!")
+        return
+    if update.message.reply_to_message:
+        user = update.message.reply_to_message.from_user
+        await context.bot.unban_chat_member(update.message.chat_id, user.id)
+        await update.message.reply_text(f"{user.full_name} آنبن شد!")
+    else:
+        await update.message.reply_text("روی پیام کاربر ریپلای بزن!")
+
+async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update):
+        await update.message.reply_text("فقط ادمین میتونه!")
+        return
+    if update.message.reply_to_message:
+        user = update.message.reply_to_message.from_user
+        until = datetime.datetime.now() + datetime.timedelta(hours=1)
+        await context.bot.restrict_chat_member(
+            update.message.chat_id, user.id,
+            ChatPermissions(can_send_messages=False), until_date=until
+        )
+        await update.message.reply_text(f"{user.full_name} یک ساعت میوت شد!")
+    else:
+        await update.message.reply_text("روی پیام کاربر ریپلای بزن!")
+
+async def unmute(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update):
+        await update.message.reply_text("فقط ادمین میتونه!")
+        return
+    if update.message.reply_to_message:
+        user = update.message.reply_to_message.from_user
+        await context.bot.restrict_chat_member(
+            update.message.chat_id, user.id,
+            ChatPermissions(can_send_messages=True, can_send_photos=True, can_send_videos=True)
+        )
+        await update.message.reply_text(f"{user.full_name} آنمیوت شد!")
+    else:
+        await update.message.reply_text("روی پیام کاربر ریپلای بزن!")
+
+async def kick(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update):
+        await update.message.reply_text("فقط ادمین میتونه!")
+        return
+    if update.message.reply_to_message:
+        user = update.message.reply_to_message.from_user
+        await context.bot.ban_chat_member(update.message.chat_id, user.id)
+        await context.bot.unban_chat_member(update.message.chat_id, user.id)
+        await update.message.reply_text(f"{user.full_name} کیک شد!")
+    else:
+        await update.message.reply_text("روی پیام کاربر ریپلای بزن!")
+
+async def pin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update):
+        await update.message.reply_text("فقط ادمین میتونه!")
+        return
+    if update.message.reply_to_message:
+        await context.bot.pin_chat_message(update.message.chat_id, update.message.reply_to_message.message_id)
+        await update.message.reply_text("پیام پین شد!")
+    else:
+        await update.message.reply_text("روی پیام ریپلای بزن!")
+
+async def userinfo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.reply_to_message.from_user if update.message.reply_to_message else update.message.from_user
+    await update.message.reply_text(
+        f"اطلاعات کاربر:\n\n"
+        f"نام: {user.full_name}\n"
+        f"آیدی: {user.id}\n"
+        f"یوزرنیم: @{user.username if user.username else 'ندارد'}"
+    )
+
+async def warn(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update):
+        await update.message.reply_text("فقط ادمین میتونه!")
+        return
+    if update.message.reply_to_message:
+        user = update.message.reply_to_message.from_user
+        uid = user.id
+        warnings[uid] = warnings.get(uid, 0) + 1
+        if warnings[uid] >= 3:
+            await context.bot.ban_chat_member(update.message.chat_id, uid)
+            await update.message.reply_text(f"{user.full_name} 3 اخطار گرفت و بن شد!")
+            warnings[uid] = 0
+        else:
+            await update.message.reply_text(f"{user.full_name} اخطار {warnings[uid]}/3 گرفت!")
+    else:
+        await update.message.reply_text("روی پیام کاربر ریپلای بزن!")
+
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat = update.message.chat
+    count = await context.bot.get_chat_member_count(chat.id)
+    await update.message.reply_text(
+        f"آمار گروه:\n\n"
+        f"تعداد اعضا: {count}\n"
+        f"نام گروه: {chat.title}"
+    )
+
+async def joke(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"جوک روز:\n\n{random.choice(JOKES)}")
+
+async def fact(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"حقیقت جالب:\n\n{random.choice(FACTS)}")
+
+async def music(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    songs = random.sample(TOP_SONGS, 5)
+    text = "آهنگ های برتر جهان:\n\n"
+    for i, s in enumerate(songs, 1):
+        text += f"{i}. {s}\n"
+    await update.message.reply_text(text)
+
+async def trivia(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = random.choice(TRIVIA)
+    opts = q["opts"].copy()
+    random.shuffle(opts)
+    trivia_answers[update.message.chat_id] = q["a"]
+    keyboard = [[InlineKeyboardButton(opt, callback_data=f"trivia_{opt}")] for opt in opts]
+    await update.message.reply_text(
+        f"سوال تریویا:\n\n{q['q']}",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+async def trivia_callback(update, context):
+    query = update.callback_query
+    await query.answer()
+    data = query.data.replace("trivia_", "")
+    correct = trivia_answers.get(query.message.chat_id)
+    if data == correct:
+        await query.edit_message_text(f"آفرین! جواب درسته: {correct}")
+    else:
+        await query.edit_message_text(f"اشتباه! جواب درست: {correct} بود!")
+
+async def guess(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.message.chat_id
+    number = random.randint(1, 100)
+    number_games[chat_id] = {"number": number, "tries": 0}
+    await update.message.reply_text(
+        "بازی حدس عدد شروع شد!\n"
+        "یه عدد بین 1 تا 100 انتخاب کردم!\n"
+        "با /try [عدد] حدس بزن!\n"
+        "مثال: /try 50"
+    )
+
+async def try_guess(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.message.chat_id
+    if chat_id not in number_games:
+        await update.message.reply_text("اول با /guess بازی رو شروع کن!")
+        return
+    if not context.args:
+        await update.message.reply_text("عدد بده! مثال: /try 50")
+        return
+    try:
+        guess_num = int(context.args[0])
+    except:
+        await update.message.reply_text("عدد صحیح وارد کن!")
+        return
+    game = number_games[chat_id]
+    game["tries"] += 1
+    number = game["number"]
+    if guess_num == number:
+        await update.message.reply_text(
+            f"آفرین! عدد {number} بود!\n"
+            f"در {game['tries']} بار حدس زدی!"
+        )
+        del number_games[chat_id]
+    elif guess_num < number:
+        await update.message.reply_text(f"بزرگتره! تلاش {game['tries']}")
+    else:
+        await update.message.reply_text(f"کوچکتره! تلاش {game['tries']}")
+
+async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    num = random.randint(1, 6)
+    await update.message.reply_text(f"تاس انداختم: {num}")
+
+async def rps(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [[
+        InlineKeyboardButton("سنگ", callback_data="rps_rock"),
+        InlineKeyboardButton("کاغذ", callback_data="rps_paper"),
+        InlineKeyboardButton("قیچی", callback_data="rps_scissors"),
+    ]]
+    await update.message.reply_text("سنگ کاغذ قیچی! انتخاب کن:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def rps_callback(update, context):
+    query = update.callback_query
+    await query.answer()
+    choice = query.data.replace("rps_", "")
+    bot_choice = random.choice(["rock", "paper", "scissors"])
+    names = {"rock": "سنگ", "paper": "کاغذ", "scissors": "قیچی"}
+    wins = {"rock": "scissors", "paper": "rock", "scissors": "paper"}
+    if choice == bot_choice:
+        result = "مساوی!"
+    elif wins[choice] == bot_choice:
+        result = "تو بردی!"
+    else:
+        result = "من بردم!"
+    await query.edit_message_text(f"تو: {names[choice]}\nمن: {names[bot_choice]}\n\n{result}")
+
+async def magic(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    preds = [
+        "آینده ات پر از موفقیته!",
+        "یه خبر خوب در راهه!",
+        "یه فرصت طلایی داری از دست میدی!",
+        "امروز روز خوبیه!",
+        "پول بادآورده در راهه!",
+        "یه آشنایی جدید در راهه!",
+        "ستاره ها میگن موفق میشی!",
+        "یه اتفاق خوب تا 7 روز دیگه!",
+    ]
+    await update.message.reply_text(f"پیش بینی آینده:\n\n{random.choice(preds)}")
+
+async def roast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    roasts = [
+        "IQ تو به اندازه دمای یخچاله، ولی یخچال مفیدتره!",
+        "وقتی ساکت میشی، همه فکر میکنن باهوش شدی!",
+        "تو اگه کمی بیشتر فکر کنی، میشی نیمه باهوش!",
+        "Google هم جواب سوالای تو رو بلد نیست!",
+        "اگه باهوش بودن جرم بود، تو آزاد بودی!",
+    ]
+    if update.message.reply_to_message:
+        name = update.message.reply_to_message.from_user.first_name
+        await update.message.reply_text(f"{name}، {random.choice(roasts)}")
+    else:
+        await update.message.reply_text(random.choice(roasts))
+
+async def love(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    percent = random.randint(0, 100)
+    if percent >= 80:
+        msg = "عشق واقعی!"
+    elif percent >= 60:
+        msg = "خیلی دوست داری!"
+    elif percent >= 40:
+        msg = "دوست داری!"
+    else:
+        msg = "زیاد علاقه ای نداری!"
+    bar = "❤" * (percent // 10) + "🖤" * (10 - percent // 10)
+    await update.message.reply_text(f"سنجش عشق:\n\n{bar}\nدرصد عشق: {percent}%\n{msg}")
+
+async def filter_bad_words(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text:
+        return
+    text = update.message.text.lower()
+    for word in BAD_WORDS:
+        if word in text:
+            await update.message.delete()
+            await context.bot.send_message(update.message.chat_id, f"{update.message.from_user.full_name} پیامت حذف شد!")
+            return
+
+async def anti_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text:
+        return
+    member = await update.message.chat.get_member(update.message.from_user.id)
+    if member.status in ["administrator", "creator"]:
+        return
+    if "t.me/" in update.message.text or "http" in update.message.text:
+        await update.message.delete()
+        await context.bot.send_message(update.message.chat_id, f"{update.message.from_user.full_name} لینک ارسال نکن!")
+
+async def send_promo(context: ContextTypes.DEFAULT_TYPE):
+    msgs = [
+        f"یه گروه عالی پیدا کردی!\nلینک گروه: {GROUP_LINK}\nمالک این گروه با دستش این گروه رو ساخته!\nبیا و عضو شو!",
+        f"گروه ما بهترینه!\nلینک گروه: {GROUP_LINK}\nمالک گروه با زحمت این جمع رو ساخته!\nمنتظرتیم!",
+        f"دنبال سرگرمی میگردی؟\nلینک گروه: {GROUP_LINK}\nمالک گروه این ربات رو برای شما ساخت!\nبیا بپیوند!",
+    ]
+    await context.bot.send_message(chat_id=CHAT_ID, text=random.choice(msgs))
+
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("ban", ban))
+    app.add_handler(CommandHandler("unban", unban))
+    app.add_handler(CommandHandler("mute", mute))
+    app.add_handler(CommandHandler("unmute", unmute))
+    app.add_handler(CommandHandler("kick", kick))
+    app.add_handler(CommandHandler("pin", pin))
+    app.add_handler(CommandHandler("userinfo", userinfo))
+    app.add_handler(CommandHandler("warn", warn))
+    app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("joke", joke))
+    app.add_handler(CommandHandler("fact", fact))
+    app.add_handler(CommandHandler("music", music))
+    app.add_handler(CommandHandler("trivia", trivia))
+    app.add_handler(CommandHandler("guess", guess))
+    app.add_handler(CommandHandler("try", try_guess))
+    app.add_handler(CommandHandler("dice", dice))
+    app.add_handler(CommandHandler("rps", rps))
+    app.add_handler(CommandHandler("magic", magic))
+    app.add_handler(CommandHandler("roast", roast))
+    app.add_handler(CommandHandler("love", love))
+
+    app.add_handler(CallbackQueryHandler(trivia_callback, pattern="^trivia_"))
+    app.add_handler(CallbackQueryHandler(rps_callback, pattern="^rps_"))
+
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, filter_bad_words))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, anti_link))
+
+    app.job_queue.run_repeating(send_promo, interval=10800, first=10)
+
+    print("ربات روشنه!")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
