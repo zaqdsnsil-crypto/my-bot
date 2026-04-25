@@ -3,7 +3,8 @@ import random
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-TOKEN = "اینجا توکن بات خودت رو بذار"
+import os
+TOKEN = os.environ.get("TOKEN")
 
 # ==================== داده ها ====================
 
