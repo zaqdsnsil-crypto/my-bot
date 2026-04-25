@@ -1,9 +1,9 @@
 import asyncio
 import random
+import os
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-import os
 TOKEN = os.environ.get("TOKEN")
 
 # ==================== داده ها ====================
@@ -70,12 +70,20 @@ TOKEN = os.environ.get("TOKEN")
 # ==================== توابع ====================
 
 def get_main_keyboard():
-    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(KeyboardButton("🎡 شهر بازی"), KeyboardButton("💕 خاطرات عشق"))
-    markup.add(KeyboardButton("😢 روزهای تنها"), KeyboardButton("🤖 مدیریت گروه"))
-    markup.add(KeyboardButton("📖 رمان"), KeyboardButton("🎉 سرگرمی"))
-    markup.add(KeyboardButton("🎵 موزیک دلخواه"))
-    return markup
+    keyboard = [
+        [KeyboardButton("🎡 شهر بازی"), KeyboardButton("💕 خاطرات عشق")],
+        [KeyboardButton("😢 روزهای تنها"), KeyboardButton("🤖 مدیریت گروه")],
+        [KeyboardButton("📖 رمان"), KeyboardButton("🎉 سرگرمی")],
+        [KeyboardButton("🎵 موزیک دلخواه")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_game_keyboard():
+    keyboard = [
+        [KeyboardButton("🎭 کوییز مافیا"), KeyboardButton("💪 برنامه تمرینی")],
+        [KeyboardButton("🏠 برگشت به منو")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -103,10 +111,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(random.choice(آموزش_مدیریت))
 
     elif text == "🎡 شهر بازی":
-        markup = ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add(KeyboardButton("🎭 کوییز مافیا"), KeyboardButton("💪 برنامه تمرینی"))
-        markup.add(KeyboardButton("🏠 برگشت به منو"))
-        await update.message.reply_text("🎡 شهر بازی\nیه بخش رو انتخاب کن:", reply_markup=markup)
+        await update.message.reply_text("🎡 شهر بازی\nیه بخش رو انتخاب کن:", reply_markup=get_game_keyboard())
 
     elif text == "🎭 کوییز مافیا":
         سوال = random.choice(سوال_مافیا)
