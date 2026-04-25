@@ -1,4 +1,4 @@
-TOKEN = "توکنت_اینجا"
+TOKEN = "8781224989:AAHN0zY5f1CJUc5_YYrN87hnJKkMa9nW6b0" 
 
 from telegram import Update, ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
