@@ -1,176 +1,145 @@
+import asyncio
+import random
 import os
-import logging
-import yt_dlp
-import spotipy
-from spotipy.oauth2 import SpotifyClientCredentials
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application, CommandHandler, CallbackQueryHandler,
-    MessageHandler, filters, ContextTypes, ConversationHandler
-)
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
+TOKEN = os.environ.get("TOKEN")
 
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-SPOTIPY_CLIENT_ID = os.environ.get("SPOTIPY_CLIENT_ID")
-SPOTIPY_CLIENT_SECRET = os.environ.get("SPOTIPY_CLIENT_SECRET")
+# ==================== داده ها ====================
 
-MAIN_MENU = 0
-MUSIC_SEARCH = 1
+پیام_عاشقانه = [
+    "❤️ عشق یعنی وقتی نگاهت می‌کنم، دنیا رو فراموش می‌کنم...",
+    "💕 دوستت دارم، نه به خاطر اینکه کی هستی، بلکه به خاطر اینکه وقتی باهاتم کی میشم...",
+    "🌹 هر شب به ستاره‌ها نگاه می‌کنم و اسمت رو زمزمه می‌کنم...",
+    "💝 قلبم فقط یه زبان بلده، اسم تو رو...",
+    "🌙 شب‌ها که چشمامو می‌بندم، فقط تو رو می‌بینم...",
+    "💫 عشق واقعی یعنی تو، همین و بس...",
+    "🥀 بدون تو نفس کشیدن هم سخته...",
+    "💌 هر روز که میگذره، بیشتر از دیروز دوستت دارم...",
+    "🌺 تو بهترین اتفاق زندگیمی...",
+    "💞 وقتی می‌خندی، تمام غم‌هام آب میشه...",
+]
 
-sp = spotipy.Spotify(
-    auth_manager=SpotifyClientCredentials(
-        client_id=SPOTIPY_CLIENT_ID,
-        client_secret=SPOTIPY_CLIENT_SECRET
-    )
-)
+نوشته_غمگین = [
+    "😔 گاهی آدم وسط جمع تنهاترین موجود دنیاست...",
+    "🖤 درد اینه که دلتنگتم ولی نمی‌تونم بگم...",
+    "🌧️ بعضی شب‌ها فقط باید گریه کرد، بدون دلیل...",
+    "💔 سخت‌ترین کار دنیا اینه که وانمود کنی خوبی...",
+    "🥀 تنهایی درد نداره، عادت کردن بهش درد داره...",
+    "🌑 بعضی آدما مثل ماه میان توی زندگیت، روشنت می‌کنن، بعد میرن...",
+    "😶 سکوت گاهی بلندترین فریادیه که می‌شه زد...",
+    "🖤 دلم یه آغوش گرم می‌خواد، همین...",
+    "🌧️ تنها موندن رو بلدم، ولی دوستش ندارم...",
+    "💙 گاهی دلت می‌خواد همه چیز رو ول کنی و فقط نفس بکشی...",
+]
+
+جوک = [
+    "😂 یه نفر رفت دکتر گفت: دکتر همه منو نادیده می‌گیرن!\nدکتر گفت: نفر بعدی! 😂",
+    "🤣 معلم: چرا دیر اومدی؟\nشاگرد: آخه نوشتید زنگ ۸ صبح!\nمعلم: خب؟\nشاگرد: من ساعت ۷:۵۹ اومدم، زنگ نخورده بود! 😂",
+    "😂 زن به شوهرش: عزیزم چرا اینقدر بی‌حافظه شدی؟\nشوهر: کِی ازدواج کردیم؟ 🤣",
+    "🤣 رفتم آرایشگاه گفتم: موهامو مثل مسی کن!\nگفت: کچلت کنم؟ 😂",
+    "😂 مامانم گفت برو اتاقتو تمیز کن!\nمنم رفتم در اتاقو بستم!\nتمیز شد! 🤣",
+]
+
+داستان = [
+    "📖 قطره باران\n\nیه روز بارونی، دختری کنار پنجره نشسته بود و به قطره‌های باران نگاه می‌کرد. هر قطره‌ای که پایین می‌اومد، یه خاطره رو باهاش می‌برد. یه لبخند زد و گفت: «زندگی هم مثل بارونه، بعد از هر بارش، هوا تازه میشه.»",
+    "📖 ستاره‌ی کوچک\n\nپسر بچه‌ای هر شب به آسمون نگاه می‌کرد و با یه ستاره حرف می‌زد. یه روز مادرش پرسید: «با کی حرف می‌زنی؟» گفت: «با دوستم. اون همیشه گوش میده و هیچ‌وقت قضاوت نمی‌کنه.»",
+    "📖 درخت پیر\n\nتوی یه روستا، درخت پیری بود که همه زیر سایه‌ش استراحت می‌کردن. یه روز بچه‌ای پرسید: «درخت، مگه خسته نمیشی؟» درخت آروم جواب داد: «وقتی می‌بینم کسی در سایه‌ام آروم گرفته، خستگیم در میره.»",
+]
+
+آموزش_ادمین = [
+    "👑 آموزش ادمین - قسمت ۱\n\n✅ چطور ادمین بشیم؟\nبرای ادمین شدن در گروه، باید توسط سازنده گروه به شما دسترسی داده بشه.\n\n📌 مراحل:\n1. سازنده گروه روی اسم شما کلیک می‌کنه\n2. گزینه «ارتقا به ادمین» رو انتخاب می‌کنه\n3. دسترسی‌های مورد نظر رو تنظیم می‌کنه",
+    "👑 آموزش ادمین - قسمت ۲\n\n✅ دسترسی‌های ادمین:\n🔹 حذف پیام\n🔹 بن کردن کاربر\n🔹 پین کردن پیام\n🔹 دعوت کاربر جدید\n🔹 تغییر اطلاعات گروه\n\n⚠️ توجه: از دسترسی‌ها با مسئولیت استفاده کنید!",
+    "👑 آموزش ادمین - قسمت ۳\n\n✅ نکات مهم ادمین بودن:\n1. همیشه منصفانه رفتار کنید\n2. قوانین گروه رو رعایت کنید\n3. از قدرت سوءاستفاده نکنید\n4. به همه احترام بذارید\n5. در صورت مشکل با سازنده مشورت کنید",
+]
+
+برنامه_ورزشی = [
+    "💪 برنامه ورزشی - روز اول (سینه و سه‌سر)\n\n🔥 گرم کردن: ۵ دقیقه\n\n1️⃣ پرس سینه: ۴ ست × ۱۲ تکرار\n2️⃣ پرس بالا سینه: ۳ ست × ۱۰ تکرار\n3️⃣ فلای دمبل: ۳ ست × ۱۲ تکرار\n4️⃣ پشت بازو سیمکش: ۴ ست × ۱۲ تکرار\n5️⃣ پشت بازو دمبل: ۳ ست × ۱۰ تکرار\n\n❄️ سرد کردن: ۵ دقیقه کشش",
+    "💪 برنامه ورزشی - روز دوم (پشت و دوسر)\n\n🔥 گرم کردن: ۵ دقیقه\n\n1️⃣ زیربغل هالتر: ۴ ست × ۱۰ تکرار\n2️⃣ زیربغل دمبل: ۳ ست × ۱۲ تکرار\n3️⃣ کرانچ: ۴ ست × ۱۵ تکرار\n4️⃣ جلو بازو هالتر: ۴ ست × ۱۲ تکرار\n5️⃣ جلو بازو دمبل: ۳ ست × ۱۰ تکرار\n\n❄️ سرد کردن: ۵ دقیقه کشش",
+    "💪 برنامه ورزشی - روز سوم (پا و شانه)\n\n🔥 گرم کردن: ۵ دقیقه\n\n1️⃣ اسکوات: ۴ ست × ۱۲ تکرار\n2️⃣ پرس پا: ۳ ست × ۱۵ تکرار\n3️⃣ ددلیفت رومانیایی: ۳ ست × ۱۰ تکرار\n4️⃣ پرس سرشانه: ۴ ست × ۱۲ تکرار\n5️⃣ نشر از جانب: ۳ ست × ۱۵ تکرار\n\n❄️ سرد کردن: ۵ دقیقه کشش",
+]
+
+سوالات_مافیا = [
+    {
+        "سوال": "🎭 در بازی مافیا، کدام نقش می‌تونه هر شب یه نفر رو شناسایی کنه؟",
+        "گزینه‌ها": ["الف) مافیا", "ب) کارآگاه", "ج) دکتر", "د) شهروند"],
+        "جواب": "ب",
+        "توضیح": "کارآگاه هر شب می‌تونه هویت یه نفر رو بفهمه."
+    },
+    {
+        "سوال": "🎭 در بازی مافیا، نقش دکتر چیه؟",
+        "گزینه‌ها": ["الف) کشتن", "ب) شناسایی", "ج) نجات دادن", "د) رای دادن"],
+        "جواب": "ج",
+        "توضیح": "دکتر هر شب می‌تونه یه نفر رو از مرگ نجات بده."
+    },
+    {
+        "سوال": "🎭 هدف اصلی مافیا در بازی چیه؟",
+        "گزینه‌ها": ["الف) کمک به شهروندان", "ب) اکثریت رو در دست گرفتن", "ج) همه رو شناسایی کردن", "د) برنده شدن در رای‌گیری"],
+        "جواب": "ب",
+        "توضیح": "مافیا باید اونقدر شهروند حذف کنه که اکثریت رو بگیره."
+    },
+]
+
+# ==================== کیبورد ====================
+
+def get_main_keyboard():
+    keyboard = [
+        [KeyboardButton("💕 پیام عاشقانه"), KeyboardButton("😢 نوشته غمگین")],
+        [KeyboardButton("😂 جوک"), KeyboardButton("📖 داستان")],
+        [KeyboardButton("👑 آموزش ادمین"), KeyboardButton("💪 برنامه ورزشی")],
+        [KeyboardButton("🎭 کوییز مافیا")],
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+# ==================== هندلرها ====================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("🎵 جستجو و دانلود آهنگ", callback_data="menu_music")],
-        [InlineKeyboardButton("🎤 آهنگ‌های خواننده", callback_data="menu_artist")],
-        [InlineKeyboardButton("ℹ️ راهنما", callback_data="menu_help")],
-    ]
-    text = "👋 سلام! به ربات موسیقی خوش اومدی.\n\nاز منوی زیر انتخاب کن:"
-    if update.message:
-        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
-    else:
-        await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
-    return MAIN_MENU
-
-async def music_song_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    context.user_data["music_mode"] = "song"
-    keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="back_main")]]
-    await query.edit_message_text("🔍 اسم آهنگ رو بنویس:", reply_markup=InlineKeyboardMarkup(keyboard))
-    return MUSIC_SEARCH
-
-async def music_artist_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    context.user_data["music_mode"] = "artist"
-    keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="back_main")]]
-    await query.edit_message_text("🎤 اسم خواننده رو بنویس:", reply_markup=InlineKeyboardMarkup(keyboard))
-    return MUSIC_SEARCH
-
-async def music_search_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query_text = update.message.text
-    mode = context.user_data.get("music_mode", "song")
-    searching_msg = await update.message.reply_text("🔍 در حال جستجو...")
-    try:
-        if mode == "song":
-            results = sp.search(q=query_text, type="track", limit=5)
-            tracks = results["tracks"]["items"]
-            if not tracks:
-                await searching_msg.edit_text("❌ آهنگی پیدا نشد!")
-                return MUSIC_SEARCH
-            keyboard = []
-            for i, track in enumerate(tracks):
-                name = track["name"]
-                artist = track["artists"][0]["name"]
-                context.user_data[f"track_{i}"] = {"name": name, "artist": artist, "query": f"{artist} {name}"}
-                keyboard.append([InlineKeyboardButton(f"🎵 {name} - {artist}", callback_data=f"download_{i}")])
-            keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data="back_main")])
-            await searching_msg.edit_text("نتایج جستجو:", reply_markup=InlineKeyboardMarkup(keyboard))
-        elif mode == "artist":
-            results = sp.search(q=query_text, type="artist", limit=1)
-            artists = results["artists"]["items"]
-            if not artists:
-                await searching_msg.edit_text("❌ خواننده‌ای پیدا نشد!")
-                return MUSIC_SEARCH
-            artist_id = artists[0]["id"]
-            artist_name = artists[0]["name"]
-            top_tracks = sp.artist_top_tracks(artist_id, country="US")["tracks"][:8]
-            keyboard = []
-            for i, track in enumerate(top_tracks):
-                name = track["name"]
-                context.user_data[f"track_{i}"] = {"name": name, "artist": artist_name, "query": f"{artist_name} {name}"}
-                keyboard.append([InlineKeyboardButton(f"🎵 {name}", callback_data=f"download_{i}")])
-            keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data="back_main")])
-            await searching_msg.edit_text(f"🎤 آهنگ‌های برتر {artist_name}:", reply_markup=InlineKeyboardMarkup(keyboard))
-    except Exception as e:
-        logger.error(f"Spotify error: {e}")
-        await searching_msg.edit_text("❌ خطا در جستجو. دوباره امتحان کن.")
-    return MUSIC_SEARCH
-
-async def download_track(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    track_index = int(query.data.split("_")[1])
-    track_info = context.user_data.get(f"track_{track_index}")
-    if not track_info:
-        await query.edit_message_text("❌ اطلاعات آهنگ پیدا نشد!")
-        return MUSIC_SEARCH
-    await query.edit_message_text(f"⬇️ در حال دانلود:\n🎵 {track_info['name']} - {track_info['artist']}")
-    try:
-        search_query = f"ytsearch1:{track_info['query']} official audio"
-        output_path = f"/tmp/{track_info['name'][:30]}.%(ext)s"
-        ydl_opts = {
-            "format": "bestaudio/best",
-            "outtmpl": output_path,
-            "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}],
-            "quiet": True,
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([search_query])
-        mp3_path = f"/tmp/{track_info['name'][:30]}.mp3"
-        with open(mp3_path, "rb") as audio_file:
-            await context.bot.send_audio(
-                chat_id=update.effective_chat.id,
-                audio=audio_file,
-                title=track_info["name"],
-                performer=track_info["artist"],
-                caption=f"🎵 {track_info['name']}\n🎤 {track_info['artist']}"
-            )
-        os.remove(mp3_path)
-    except Exception as e:
-        logger.error(f"Download error: {e}")
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ خطا در دانلود.")
-    return MUSIC_SEARCH
-
-async def help_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="back_main")]]
-    await query.edit_message_text(
-        "ℹ️ *راهنما*\n\n🎵 جستجوی آهنگ: اسم آهنگ رو بنویس\n🎤 خواننده: اسم خواننده رو بنویس",
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        "👋 سلام! به ربات خوش اومدی!\n\nاز منوی زیر انتخاب کن:",
+        reply_markup=get_main_keyboard()
     )
-    return MAIN_MENU
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    data = query.data
-    if data == "back_main":
-        return await start(update, context)
-    elif data == "menu_music":
-        return await music_song_prompt(update, context)
-    elif data == "menu_artist":
-        return await music_artist_prompt(update, context)
-    elif data == "menu_help":
-        return await help_menu(update, context)
-    elif data.startswith("download_"):
-        return await download_track(update, context)
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+
+    if text == "💕 پیام عاشقانه":
+        await update.message.reply_text(random.choice(پیام_عاشقانه))
+
+    elif text == "😢 نوشته غمگین":
+        await update.message.reply_text(random.choice(نوشته_غمگین))
+
+    elif text == "😂 جوک":
+        await update.message.reply_text(random.choice(جوک))
+
+    elif text == "📖 داستان":
+        await update.message.reply_text(random.choice(داستان))
+
+    elif text == "👑 آموزش ادمین":
+        await update.message.reply_text(random.choice(آموزش_ادمین))
+
+    elif text == "💪 برنامه ورزشی":
+        await update.message.reply_text(random.choice(برنامه_ورزشی))
+
+    elif text == "🎭 کوییز مافیا":
+        سوال = random.choice(سوالات_مافیا)
+        متن = f"{سوال['سوال']}\n\n"
+        for گزینه in سوال["گزینه‌ها"]:
+            متن += f"{گزینه}\n"
+        متن += f"\n✅ جواب: {سوال['جواب']}\n💡 {سوال['توضیح']}"
+        await update.message.reply_text(متن)
+
+    else:
+        await update.message.reply_text("لطفاً از منو انتخاب کن 👇", reply_markup=get_main_keyboard())
+
+# ==================== اجرا ====================
 
 def main():
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
-        states={
-            MAIN_MENU: [CallbackQueryHandler(button_handler)],
-            MUSIC_SEARCH: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, music_search_handler),
-                CallbackQueryHandler(button_handler),
-            ],
-        },
-        fallbacks=[CommandHandler("start", start)],
-    )
-    app.add_handler(conv_handler)
-    logger.info("ربات شروع به کار کرد!")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    print("ربات شروع به کار کرد!")
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
