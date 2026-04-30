@@ -89,17 +89,24 @@ CITY_TEXTS = [
 ]
 
 FUN_TEXTS = [
-    "🎉 سرگرمی یعنی بیخیال همه چیز بشی\nو فقط لذت ببری 🎊",
-]
-
-def get_random_text(category: str) -> str:
-    texts_map = {
-        "night": NIGHT_TEXTS, "life": LIFE_TEXTS, "respect": RESPECT_TEXTS,
-        "love": LOVE_TEXTS, "lonely": LONELY_TEXTS, "novel": NOVEL_TEXTS,
-        "city": CITY_TEXTS, "fun": FUN_TEXTS, "joke": JOKES
-    }
-    texts = texts_map.get(category, JOKES)
-    return random.choice(texts)
+  async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category: str, title: str):
+    """ارسال پیام جدید با متن تصادفی + دکمه‌های بعدی"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = get_random_text(category)
+    
+    keyboard = [
+        [InlineKeyboardButton("🔄 متن بعدی", callback_data=f"menu_{category}")],
+        [InlineKeyboardButton("🏠 منوی اصلی", callback_data="back_main")]
+    ]
+    
+    # ارسال پیام جدید به جای ویرایش پیام قبلی
+    await query.message.reply_text(
+        f"**{title}**\n\n{text}",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+      )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """دستور استارت - نمایش منوی اصلی"""
