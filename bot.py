@@ -647,4 +647,9 @@ async def complete_quest_command(update: Update, context: ContextTypes.DEFAULT_T
     else:
         await update.message.reply_text("❌ چالش امروز رو قبلاً انجام دادی یا فعال نیست", reply_markup=get_main_keyboard())
 
-async def game_command(update: Update, context: ContextTypes.D
+async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    if user_id in number_games:
+        await update.message.reply_text("🎮 یه بازی در حال اجراست! عدد بفرست:")
+    else:
+        await start_number_game(update, user_id)
